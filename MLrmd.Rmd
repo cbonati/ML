@@ -1,0 +1,116 @@
+---
+title: "Machine Learning - Prediction Assignment Writeup"
+author: "CB"
+date: "Sunday, November 23, 2014"
+output: html_document
+---
+# 1. Introduction
+
+##1.1. Background information
+
+<br/>Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.
+<br/>These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+<br/>In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+<br/>They were asked to **perform barbell lifts correctly and incorrectly in 5 different ways**. More precisely, they were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class **A**), throwing the elbows to the front (Class **B**), lifting the dumbbell only halfway (Class **C**), lowering the dumbbell only halfway (Class **D**) and throwing the hips to the front (Class **E**).
+<br/>More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##1.2. Data
+
+<br/>The **training data** for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+<br/>The **test data** are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+##1.3. Goal of the project and submission
+
+**The goal of the project is to predict the manner in which they did the exercise.** This is the **"classe"** variable in the training set. We may use any of the other variables to predict with. We should create a report describing how we **built your model**, how we used **cross validation**, what we think the **expected out of sample error is**, and **why we made the choices we did**. We will also **use our prediction model to predict 20 different test cases**.
+
+#2. Loading the data
+
+We assume that the two datasets are in our working directory.
+
+```{r Loading data}
+options(stringsAsFactors = FALSE)
+
+originalTraining <- read.csv("pml-training.csv")
+originalTesting  <- read.csv("pml-testing.csv")
+
+dim(originalTraining)
+dim(originalTesting)
+```
+
+#3. Selecting the features
+
+<br/>The actual training set is huge (19622 observations of 160 variables). Consequently, it is important to reduce the size of the sets.
+<br/>Since the data we use come from *accelerometers* on the belt, forearm, arm, and dumbell, we argue that it is important to **use the variables aceleration** as predictors for our model. Erring on the side of interpretability and simplicity, we choose to select only those twelve variables.
+
+```{r Selecting features}
+OkTraining <- originalTraining[ , union(grep("^accel_", colnames(originalTraining)), grep("classe", colnames(originalTraining)) )]
+OkTesting  <- originalTesting[ , union(grep("^accel_", colnames(originalTesting)),   grep("classe", colnames(originalTesting))  )]
+
+dim(OkTraining)
+dim(OkTesting)
+
+names(OkTraining)
+names(OkTesting)
+```
+
+#4. Histograms
+
+<br/>In order to see the basic properties of three of our fearures, we perform their histrograms.
+```{r Histograms}
+hist(OkTraining$accel_belt_x)
+hist(OkTraining$accel_belt_y)
+hist(OkTraining$accel_belt_z)
+```
+
+#5. Splitting the data
+
+<br/>We split our training set into **two subsets**: "sampleTraining" (75%) and "sampleTesting" (25%).
+
+```{r Data Splitting}
+library(caret)
+library(randomForest)
+
+inTrain <- createDataPartition(y = OkTraining$classe, p = 0.75, list = FALSE)
+sampleTraining <- OkTraining[inTrain, ]
+sampleTesting <-  OkTraining[-inTrain, ]
+```
+
+#6. Fitting the model
+
+<br/>We use a **random forest** because it is usually one of the top performing methods, along with boosting.
+<br/>We also select the **cross-validation** option.
+
+```{r Model Fitting}
+library(caret)
+set.seed(651)
+
+sampleTraining$classe <-as.factor(sampleTraining$classe)
+sampleTraining[, 1:12] <- sapply(sampleTraining[, 1:12], as.numeric)
+
+sampleTesting$classe <-as.factor(sampleTesting$classe)
+sampleTesting[, 1:12] <- sapply(sampleTesting[, 1:12], as.numeric)
+
+modFit <- train(classe~ ., data=sampleTraining , method="rf", trControl = trainControl(method = "cv"))
+
+```
+
+#7. Predicting on the sampleTesting dataset
+
+Finally, we predict our model on the sampleTesting dataset.
+
+```{r Prediction}
+predictions <- predict(modFit , newdata=sampleTesting)
+confusionMatrix (predictions, sampleTesting$classe)
+```
+
+<br/>So, using cross-validation, we expect the **out of sample error** to be **about 5%**.
+<br/>NB: It is important to keep in mind that usually, the following holds: *in sample* error < *out of sample* error.
+
+#8. Finding the 20 answers
+
+Finally, we obtain the 20 answers of the "Course Project: Submission".
+
+```{r Answers}
+Answers <- predict(modFit , newdata=originalTesting)
+print(Answers)
+```
